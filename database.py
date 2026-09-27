@@ -16,7 +16,9 @@ class Database:
             """)
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS users (
-                    user_id INTEGER PRIMARY KEY
+                    user_id INTEGER PRIMARY KEY,
+                    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    banned INTEGER DEFAULT 0
                 )
             """)
             await db.execute("""
@@ -25,6 +27,12 @@ class Database:
                     user_id INTEGER,
                     code TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS channels (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL
                 )
             """)
             await db.commit()
@@ -85,7 +93,21 @@ class Database:
             row = await cursor.fetchone()
             return row[0]
 
-    # --- Requests (statistika uchun) ---
+    async def all_user_ids(self):
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute("SELECT user_id FROM users WHERE banned = 0")
+            rows = await cursor.fetchall()
+            return [r[0] for r in rows]
+
+    async def users_today(self) -> int:
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM users WHERE date(joined_at) = date('now')"
+            )
+            row = await cursor.fetchone()
+            return row[0]
+
+    # --- Requests ---
     async def log_request(self, user_id: int, code: str):
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
@@ -98,3 +120,32 @@ class Database:
             cursor = await db.execute("SELECT COUNT(*) FROM requests")
             row = await cursor.fetchone()
             return row[0]
+
+    async def top_movies(self, limit: int = 5):
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                """
+                SELECT code, COUNT(*) as cnt FROM requests
+                GROUP BY code ORDER BY cnt DESC LIMIT ?
+                """,
+                (limit,),
+            )
+            return await cursor.fetchall()
+
+    # --- Channels (majburiy obuna) ---
+    async def add_channel(self, username: str):
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                "INSERT OR IGNORE INTO channels (username) VALUES (?)", (username,)
+            )
+            await db.commit()
+
+    async def remove_channel(self, channel_id: int):
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
+            await db.commit()
+
+    async def list_channels(self):
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute("SELECT id, username FROM channels")
+            return await cursor.fetchall()
