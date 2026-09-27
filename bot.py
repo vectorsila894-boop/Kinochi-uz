@@ -18,7 +18,7 @@ ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "0").split(",") if x.strip()
 REQUIRED_CHANNEL = os.getenv("REQUIRED_CHANNEL", "")  # masalan: "@mening_kanalim"
 
 db = Database("kino_bot.db")
-bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
 
